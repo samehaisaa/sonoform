@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+chladni_square_modes.png
+*.png
+!docs/*.png
+docs/*.npy
+docs/chladni_plate.png
+docs/sand_test.png
+docs/major_triad.png
+docs/minor.*
+dist/
+build/
