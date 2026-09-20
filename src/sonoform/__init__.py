@@ -9,6 +9,7 @@ from sonoform.inverse import (
     check_feasibility,
     solve_inverse,
 )
+from sonoform.plate import BRASS, PlateSpectrum, solve_plate
 from sonoform.spectrum import Spectrum, solve_spectrum
 
 __version__ = "0.1.0"
@@ -18,10 +19,13 @@ __all__ = [
     "Feasibility",
     "FourierShape",
     "InverseResult",
+    "BRASS",
+    "PlateSpectrum",
     "Spectrum",
     "check_feasibility",
     "polygon_mesh",
     "solve_inverse",
+    "solve_plate",
     "solve_spectrum",
     "star_mesh",
 ]
