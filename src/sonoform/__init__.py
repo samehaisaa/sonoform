@@ -1,5 +1,6 @@
 """sonoform: every shape has a sound, and sand will show you."""
 
+from sonoform.audio import modal_amplitudes, render, render_plate, write_wav
 from sonoform.geometry import FourierShape, polygon_mesh, star_mesh
 from sonoform.inverse import (
     CHORDS,
@@ -15,6 +16,10 @@ from sonoform.spectrum import Spectrum, solve_spectrum
 __version__ = "0.1.0"
 __all__ = [
     "CHORDS",
+    "modal_amplitudes",
+    "render",
+    "render_plate",
+    "write_wav",
     "PPW_FREQUENCY_BOUND",
     "Feasibility",
     "FourierShape",
