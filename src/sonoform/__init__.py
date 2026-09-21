@@ -11,6 +11,7 @@ from sonoform.inverse import (
     solve_inverse,
 )
 from sonoform.plate import BRASS, PlateSpectrum, solve_plate
+from sonoform.sand import nodal_segments, sand_step
 from sonoform.spectrum import Spectrum, solve_spectrum
 
 __version__ = "0.1.0"
@@ -28,7 +29,9 @@ __all__ = [
     "PlateSpectrum",
     "Spectrum",
     "check_feasibility",
+    "nodal_segments",
     "polygon_mesh",
+    "sand_step",
     "solve_inverse",
     "solve_plate",
     "solve_spectrum",
