@@ -46,12 +46,10 @@ jobs:
             sleep 2
           done
           curl -fsS -o /dev/null http://127.0.0.1:8731/ || { docker logs sonoform; exit 1; }
-          hz=$(curl -fsS -X POST http://127.0.0.1:8731/plate \
-                 -H 'Content-Type: application/json' \
-                 -d '{"shape":"square","modes":6}' \
-               | python -c 'import json,sys; print(round(json.load(sys.stdin)["modes"][0]["hz"],1))')
-          echo "first partial: $hz Hz"
-          test "$hz" = "135.4" || { echo "expected 135.4 Hz, got $hz"; exit 1; }
+          curl -fsS -X POST http://127.0.0.1:8731/plate -o plate.json \
+            -H 'Content-Type: application/json' \
+            -d '{"shape":"square","modes":6}'
+          python tools/smoke_check.py
           docker stop sonoform
 
       - name: Log in to GHCR
