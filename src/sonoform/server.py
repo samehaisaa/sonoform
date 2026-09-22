@@ -410,13 +410,21 @@ class _Handler(BaseHTTPRequestHandler):
             self._json({"error": f"{type(exc).__name__}: {exc}"}, 500)
 
 
-def serve(port: int = 8731, open_browser: bool = True) -> None:
-    """Run the local app until interrupted."""
+def serve(
+    port: int = 8731, open_browser: bool = True, host: str = "127.0.0.1"
+) -> None:
+    """Run the local app until interrupted.
+
+    ``host`` stays on the loopback address by default. A container has to bind
+    0.0.0.0 to be reachable from outside its own network namespace, which is
+    what the image does, but nothing else should.
+    """
     import tempfile
 
-    server = ThreadingHTTPServer(("127.0.0.1", port), _Handler)
+    server = ThreadingHTTPServer((host, port), _Handler)
     server.tmpdir = tempfile.mkdtemp(prefix="sonoform-")
-    url = f"http://127.0.0.1:{port}/"
+    shown = "127.0.0.1" if host in ("0.0.0.0", "") else host
+    url = f"http://{shown}:{port}/"
     print(f"\n  sonoform is running at {url}")
     print("  press Ctrl+C to stop\n")
     if open_browser:

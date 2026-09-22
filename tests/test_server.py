@@ -132,3 +132,27 @@ def test_plate_http_solves_and_returns_a_wav(tmp_path):
         assert heard == pytest.approx(shown, abs=0.05)
     finally:
         server.shutdown()
+
+
+def test_serve_binds_loopback_unless_told_otherwise():
+    """The container has to bind 0.0.0.0; nothing else should.
+
+    Guards the default rather than the container, since the failure that
+    matters is a local run quietly listening on every interface.
+    """
+    import inspect
+
+    from sonoform.server import serve
+
+    assert inspect.signature(serve).parameters["host"].default == "127.0.0.1"
+
+
+def test_play_passes_the_host_through(monkeypatch):
+    from sonoform import cli
+
+    seen = {}
+    monkeypatch.setattr(
+        "sonoform.server.serve", lambda **kw: seen.update(kw) or None
+    )
+    cli.main(["play", "--host", "0.0.0.0", "--port", "9123", "--no-browser"])
+    assert seen == {"host": "0.0.0.0", "port": 9123, "open_browser": False}

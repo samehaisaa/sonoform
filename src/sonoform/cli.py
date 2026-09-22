@@ -229,7 +229,7 @@ def _wrap(text: str, width: int) -> list[str]:
 def _cmd_play(args) -> int:
     from sonoform.server import serve
 
-    serve(port=args.port, open_browser=args.open_browser)
+    serve(port=args.port, open_browser=args.open_browser, host=args.host)
     return 0
 
 
@@ -302,6 +302,11 @@ def main(argv=None) -> int:
         "play", help="open the plate, draw an outline, strike it"
     )
     play.add_argument("--port", type=int, default=8731)
+    play.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="address to bind; the container image sets 0.0.0.0",
+    )
     play.add_argument(
         "--no-browser",
         dest="open_browser",
