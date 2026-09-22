@@ -101,26 +101,9 @@ let data = null, selected = 0, strike = null, ring = null;
 let bowing = false, osc = null, oscGain = null;
 let plateKind = 'square', sourcePoints = null, drawMode = false;
 
-// Ring of points for each preset. They go through the same outline route a
-// drawn shape uses, so there is nothing special about them server side.
-function ring_(n, radius) {
-  const out = [];
-  for (let i = 0; i < n; i++) {
-    const t = 2 * Math.PI * i / n;
-    out.push([radius(t) * Math.cos(t), radius(t) * Math.sin(t)]);
-  }
-  return out;
-}
-const PLATES = {
-  square:   { label: 'square',   shape: 'square' },
-  circle:   { label: 'circle',   points: ring_(160, () => 1) },
-  triangle: { label: 'triangle', points: ring_(150, t => 1 / Math.max(0.35,
-                Math.cos((((t + Math.PI / 2) % (2 * Math.PI / 3)) - Math.PI / 3))) ) },
-  ellipse:  { label: 'ellipse',  points: ring_(160, t =>
-                1 / Math.hypot(Math.cos(t) / 1.0, Math.sin(t) / 0.62)) },
-  hexagon:  { label: 'hexagon',  points: ring_(150, t => 1 / Math.max(0.5,
-                Math.cos(((t % (Math.PI / 3)) - Math.PI / 6))) ) },
-};
+// Filled from the backend. The outlines live in sonoform.presets, so there is
+// exactly one copy of them and the precomputed demo cannot drift from the app.
+let PLATES = {};
 let grains = [], busy = false, drawing = false, moved = 0, stroke = [];
 let cam = null, started = performance.now();
 // How hard the plate is ringing right now, 0 at rest. This is the single
@@ -766,12 +749,33 @@ function drawStroke(mvp, span) {
   drawFlat(buf.stroke, arr.length / 3, gl.LINES, [0.91, 0.89, 0.86], 1, mvp);
 }
 
+// One seam for both ways this page runs. Served by `sonoform play` it talks to
+// the local solver. Published as a static demo, STATIC serves the presets from
+// files solved ahead of time by the same code, and drawing is unavailable
+// because there is nothing to solve with.
+const STATIC = window.SONOFORM_STATIC || null;
+
+async function get(path) {
+  if (STATIC) return STATIC.get(path);
+  return (await fetch(path)).json();
+}
+
 async function post(path, body) {
+  if (STATIC) return STATIC.post(path, body);
   const res = await fetch(path, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
   return res.json();
+}
+
+async function loadPresets() {
+  try {
+    PLATES = await get('/presets');
+  } catch {
+    PLATES = { square: { label: 'square' } };
+  }
+  buildPlates();
 }
 
 function showPlate(out) {
@@ -812,13 +816,13 @@ function showPartials() {
   ).join('');
 }
 
-async function loadSquare() {
+async function loadPreset(key) {
   $('msg').textContent = 'solving';
   $('msg').className = '';
   try {
-    const out = await post('/plate', { shape: 'square', modes: 6 });
+    const out = await post('/plate', { preset: key, modes: 6 });
     if (!out.valid) throw new Error(out.error || 'no plate');
-    plateKind = 'square'; sourcePoints = null;
+    plateKind = key; sourcePoints = null;
     showPlate(out);
   } catch (err) {
     $('msg').textContent = String(err.message || err);
@@ -999,8 +1003,7 @@ async function loadPlate(key) {
   plateKind = key;
   buildPlates();
   const before = data;
-  if (plate.shape === 'square') await loadSquare();
-  else await solveOutline(plate.points.map(p => [p[0] * 0.09, p[1] * 0.09]));
+  await loadPreset(key);
   if (data === before) {
     // the solve failed; do not leave the button lit on a plate that is not
     // the one on screen, which is how a server error read as "nothing happened"
@@ -1015,8 +1018,7 @@ async function loadPlate(key) {
 sizeCanvas();
 initGL();
 frame();
-buildPlates();
-loadPlate('square');
+loadPresets().then(() => loadPlate('square'));
 </script>
 </body>
 </html>

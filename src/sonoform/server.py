@@ -40,6 +40,7 @@ from sonoform.plate import (
     solve_plate,
     square_mesh,
 )
+from sonoform.presets import PRESETS, preset_request
 from sonoform.spectrum import solve_spectrum
 
 __all__ = ["serve"]
@@ -176,6 +177,11 @@ def _square_outline(span: float = SPAN) -> np.ndarray:
 def _plate_for(payload):
     """Solve, or reuse the last plate when the outline has not changed."""
     count = int(payload.get("modes", 6))
+    preset = payload.get("preset")
+    if preset is not None:
+        if preset not in PRESETS:
+            raise ValueError(f"no preset called {preset!r}")
+        payload = {**preset_request(preset, count), "modes": count}
     points = payload.get("points")
     if payload.get("shape") == "square" or not points:
         key = ("square", count)
@@ -275,6 +281,10 @@ class _Handler(BaseHTTPRequestHandler):
                 (_WEB / "index.html").read_bytes(),
                 "text/html; charset=utf-8",
             )
+        elif route == "/presets":
+            # Labels only. The outlines stay server side so the page has no
+            # second copy of them to drift from.
+            self._json({key: {"label": p["label"]} for key, p in PRESETS.items()})
         elif route == "/chords":
             self._json(
                 {
