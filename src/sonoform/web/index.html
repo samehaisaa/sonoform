@@ -2,1023 +2,230 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>sonoform</title>
-<style>
-  :root {
-    --bg: #0b0d10; --ink: #e8e4dc; --dim: #6d747e;
-    --line: #1c2028; --warm: #c9593f; --sand: #e8d9b0;
-  }
-  * { box-sizing: border-box; }
-  html, body { height: 100%; }
-  body {
-    margin: 0; background: var(--bg); color: var(--ink);
-    font: 13px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    display: flex; flex-direction: column; overflow: hidden;
-  }
-  #stage { flex: 1; position: relative; min-height: 0; }
-  canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
-  #hint {
-    position: absolute; inset: 0; display: flex; align-items: center;
-    justify-content: center; color: var(--dim); font-size: 15px;
-    letter-spacing: .08em; pointer-events: none; transition: opacity .6s;
-  }
-  #hint.gone { opacity: 0; }
-  footer {
-    display: flex; align-items: center; gap: 22px; flex-wrap: wrap;
-    padding: 12px 22px; border-top: 1px solid var(--line);
-  }
-  .brand { font-weight: 600; letter-spacing: .1em; }
-  .partials { display: flex; gap: 14px; flex-wrap: wrap; color: var(--dim); }
-  .partials b { color: var(--ink); font-weight: 500; }
-  .modes { display: flex; gap: 4px; }
-  .modes button, .act {
-    background: transparent; color: var(--dim); border: 1px solid var(--line);
-    border-radius: 5px; padding: 5px 11px; cursor: pointer; font: inherit;
-    font-size: 12px; transition: .15s;
-  }
-  .modes button:hover, .act:hover { color: var(--ink); border-color: #38404d; }
-  .modes button.on { color: var(--bg); background: var(--ink); border-color: var(--ink); }
-  .act.primary { color: var(--ink); border-color: #38404d; }
-  .act:disabled { opacity: .35; cursor: default; }
-  .spacer { flex: 1; }
-  #msg { color: var(--dim); }
-  #msg.bad { color: var(--warm); }
-</style>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>sonoform · Chladni plates, solved</title>
+<meta name="description" content="Bow a plate and watch sand find its still lines. Chladni figures solved from the equations of elasticity, with the sound the plate really makes, in your browser.">
+<meta name="theme-color" content="#161715">
+<meta property="og:type" content="website">
+<meta property="og:title" content="sonoform · every shape has a sound">
+<meta property="og:description" content="Bow a plate and watch sand find its still lines. Solved from the equations of elasticity.">
+<meta property="og:url" content="https://samehaisaa.github.io/sonoform/">
+<meta property="og:image" content="https://samehaisaa.github.io/sonoform/og.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@300;400;500&display=swap">
+<link rel="stylesheet" href="app.css">
 </head>
-<body>
+<body class="intro-on">
 
-<div id="stage">
-  <canvas id="cv"></canvas>
-  <div id="hint">draw a closed loop</div>
+<canvas id="gl" aria-label="A plate with sand on it, above raked gravel"></canvas>
+
+<div id="ui" class="ui">
+
+  <header class="top" id="top">
+    <div class="id">
+      <a class="mark" href="https://github.com/samehaisaa/sonoform" target="_blank" rel="noopener" title="sonoform on GitHub">sonoform</a>
+      <button type="button" class="now" id="now" aria-expanded="false" aria-controls="tray" title="Plate, sheet and size (S)">
+        <span id="nowPlate"></span><span id="nowSheet"></span><span id="nowSize"></span>
+      </button>
+    </div>
+    <nav class="corner" aria-label="Options">
+      <button type="button" class="glyph" id="btnSound" aria-label="Mute" title="Sound (M)">
+        <svg viewBox="0 0 24 24" class="on-sound" aria-hidden="true"><path d="M4.5 9.5h3l4-3.5v12l-4-3.5h-3z"/><path d="M15 9.2a4 4 0 0 1 0 5.6M17.6 6.8a7.4 7.4 0 0 1 0 10.4"/></svg>
+        <svg viewBox="0 0 24 24" class="off-sound" aria-hidden="true"><path d="M4.5 9.5h3l4-3.5v12l-4-3.5h-3z"/><path d="M15.5 9.5l5 5M20.5 9.5l-5 5"/></svg>
+      </button>
+      <button type="button" class="glyph" id="btnMenu" aria-expanded="false" aria-controls="menu" aria-label="More" title="More">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle class="fill" cx="6" cy="12" r="1.2"/><circle class="fill" cx="12" cy="12" r="1.2"/><circle class="fill" cx="18" cy="12" r="1.2"/></svg>
+      </button>
+    </nav>
+  </header>
+
+  <div class="menu" id="menu" hidden>
+    <button type="button" id="btnAtlas"><span>atlas</span><kbd>A</kbd></button>
+    <button type="button" id="btnShot"><span>save image</span></button>
+    <button type="button" id="btnShare"><span>copy link</span></button>
+    <button type="button" id="btnZen"><span>zen</span><kbd>Z</kbd></button>
+    <button type="button" id="btnInfo"><span>the physics</span><kbd>I</kbd></button>
+    <a id="btnStar" href="https://github.com/samehaisaa/sonoform" target="_blank" rel="noopener"><span>star on github</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4.2l2.3 4.8 5.2.6-3.9 3.6 1 5.2L12 15.9l-4.6 2.5 1-5.2-3.9-3.6 5.2-.6z"/></svg></a>
+  </div>
+
+  <aside class="tray" id="tray" aria-hidden="true" aria-label="Plate, sheet and size">
+    <button type="button" class="close" id="trayClose" aria-label="Close">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg>
+    </button>
+    <section>
+      <h2>plate</h2>
+      <div class="plates" id="plates" role="radiogroup" aria-label="Plate"></div>
+      <p class="note" id="plateNote"></p>
+    </section>
+    <section>
+      <h2>sheet</h2>
+      <div class="metals" id="metals" role="radiogroup" aria-label="Sheet"></div>
+      <p class="note" id="metalNote"></p>
+    </section>
+    <section class="dims">
+      <h2>size</h2>
+      <label class="slider">
+        <span>thickness</span>
+        <output id="thickOut">2.0 mm</output>
+        <input id="thick" type="range" min="0.5" max="6" step="0.1" value="2" aria-label="Thickness in millimetres">
+      </label>
+      <label class="slider">
+        <span>span</span>
+        <output id="spanOut">180 mm</output>
+        <input id="span" type="range" min="80" max="600" step="5" value="180" aria-label="Span in millimetres">
+      </label>
+      <p class="warn" id="thinWarn" hidden></p>
+    </section>
+  </aside>
+
+  <div class="caption" id="caption" aria-live="polite">
+    <p class="caption-text" id="captionText"></p>
+    <div class="caption-actions">
+      <button type="button" class="link" id="captionNext">next</button>
+      <button type="button" class="link" id="captionSkip">skip</button>
+    </div>
+  </div>
+
+  <footer class="dock" id="dock">
+    <div class="looks" id="looks">
+      <div class="views" id="views" role="radiogroup" aria-label="How to look">
+        <button type="button" class="glyph on" data-view="sand" role="radio" aria-checked="true" aria-label="Sand" title="Sand (V)">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><g class="fill"><circle cx="8.6" cy="8.6" r=".95"/><circle cx="10.4" cy="10.4" r=".95"/><circle cx="13.6" cy="13.6" r=".95"/><circle cx="15.4" cy="15.4" r=".95"/><circle cx="15.4" cy="8.6" r=".95"/><circle cx="13.6" cy="10.4" r=".95"/><circle cx="10.4" cy="13.6" r=".95"/><circle cx="8.6" cy="15.4" r=".95"/></g></svg>
+        </button>
+        <button type="button" class="glyph" data-view="strobe" role="radio" aria-checked="false" aria-label="Stroboscope" title="Stroboscope (V)">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M4.6 12c2.5-4.4 5-4.4 7.4 0s4.9 4.4 7.4 0"/></svg>
+        </button>
+        <button type="button" class="glyph" data-view="hologram" role="radio" aria-checked="false" aria-label="Hologram" title="Hologram (V)">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="2"/></svg>
+        </button>
+      </div>
+      <span class="sep" aria-hidden="true"></span>
+      <button type="button" class="glyph" id="nodes" aria-pressed="false" aria-label="Nodal lines" title="Nodal lines (N)">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M4.8 10.2c3.3 1.6 11.1 1.6 14.4 0M4.8 13.8c3.3-1.6 11.1-1.6 14.4 0"/></svg>
+      </button>
+      <button type="button" class="glyph" id="pour" aria-label="Pour sand" title="Pour sand (P)">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 15c2.4 3.6 12.6 3.6 15 0"/><g class="fill"><circle cx="12" cy="4.6" r=".95"/><circle cx="12" cy="8.1" r=".95"/><circle cx="10.2" cy="11.4" r=".95"/><circle cx="13.8" cy="11.4" r=".95"/></g></svg>
+      </button>
+    </div>
+    <div class="path" id="path">
+      <svg class="defs" width="0" height="0" aria-hidden="true"><defs><filter id="stone-soft" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="2.2"/></filter></defs></svg>
+      <div class="stones" id="ladder" role="listbox" aria-label="Notes of this plate"></div>
+      <div class="label" id="noteLabel" aria-hidden="true"><b id="noteName"></b><span id="noteHz"></span></div>
+    </div>
+    <button type="button" class="hold" id="bow" aria-pressed="false" title="Hold to bow. A short press keeps it going. (Space)">
+      <span class="ring" aria-hidden="true"><i></i><i></i></span>
+      <span class="hold-label" id="bowLabel">hold</span>
+    </button>
+    <p class="hint" id="status" aria-live="polite"></p>
+  </footer>
+
+  <section class="sheet" id="sheet" aria-hidden="true" aria-label="The physics">
+    <button type="button" class="close" id="sheetClose" aria-label="Close">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg>
+    </button>
+    <article>
+      <p class="kicker">the physics</p>
+      <h2>What you are looking at</h2>
+      <p class="eq">D ∇⁴w = ρh ω² w,&ensp; D = Eh³ / 12(1 − ν²)</p>
+      <p>Each solution on a plate free at every edge is a mode w(x, y) with its own frequency. The sand settles on its nodal set, the curves where w = 0 and the plate does not move.</p>
+
+      <h3>The plate</h3>
+      <p>Each outline is solved with Argyris triangles, quintic elements with continuous slopes. Your browser receives each mode as the exact quintic on every triangle, and evaluates it per pixel for the lines and fringes and on a grid for the sand.</p>
+      <div class="facts" id="plateFacts"></div>
+      <p>Metal and size only rescale the frequency, f = Ω √(D/ρh) / 2πL². Poisson's ratio stays inside the equation, so each metal is solved on its own. A note shared by two figures is drawn as twin stones, and moving the bow along the edge turns its figure.</p>
+
+      <h3>The sand</h3>
+      <p>Where the plate moves, grains are thrown and land at random. Where it is still, they stay. That walk has no drift,</p>
+      <p class="eq">dx = √(2D dt) ξ,&ensp; D ∝ D₀ + |A(x)|</p>
+      <p>and its steady state is ρ ∝ 1/D, which is the nodal set. Abramian, Protière, Lazarus and Devauchelle measured this in 2025.</p>
+
+      <h3>The sound</h3>
+      <p>Each ear gets its own Rayleigh integral over the vibrating surface, so turning the plate changes what you hear. A bowed note is a pure tone that rings down at π η f plus its radiation loss. A tap is every mode at once, struck with a felt mallet.</p>
+
+      <h3>Three ways of looking</h3>
+      <p><b>Sand.</b> Chladni's way. <b>Stroboscope.</b> The motion slowed to one swing every two seconds and exaggerated, lighter where the sheet is above its rest. <b>Hologram.</b> A time-averaged hologram glows as J₀²(4πA/λ), with a dark fringe at every sixth of a micron of swing, shown in black and white as the first ones were. <b>Nodal lines.</b> The exact zero set of the solution.</p>
+
+      <h3>How it is checked</h3>
+      <div class="checks" id="checks"><p class="dim">Loading the benchmarks…</p></div>
+      <p>On every commit, tests check the quintics, radiation rates, Rayleigh integrals and strikes this page computes against scikit-fem and the Python package, on the same plates.</p>
+
+      <h3>Keys</h3>
+      <dl class="keys">
+        <dt>Space</dt><dd>hold to bow</dd>
+        <dt>B</dt><dd>keep bowing</dd>
+        <dt>← →</dt><dd>change note</dd>
+        <dt>T</dt><dd>tap the plate</dd>
+        <dt>V</dt><dd>change view</dd>
+        <dt>N</dt><dd>nodal lines</dd>
+        <dt>P</dt><dd>pour sand</dd>
+        <dt>S</dt><dd>plate, sheet and size</dd>
+        <dt>A</dt><dd>atlas</dd>
+        <dt>Z</dt><dd>zen</dd>
+        <dt>M</dt><dd>mute</dd>
+      </dl>
+
+      <h3>Sources</h3>
+      <ol class="refs">
+        <li>E. F. F. Chladni, <i>Entdeckungen über die Theorie des Klanges</i>, Leipzig (1787).</li>
+        <li>G. Kirchhoff, Über das Gleichgewicht und die Bewegung einer elastischen Scheibe, <i>J. reine angew. Math.</i> 40, 51 (1850).</li>
+        <li>A. W. Leissa, <i>Vibration of Plates</i>, NASA SP-160 (1969).</li>
+        <li>J. H. Argyris, I. Fried and D. W. Scharpf, The TUBA family of plate elements, <i>Aeronaut. J.</i> 72, 701 (1968).</li>
+        <li>A. Abramian, S. Protière, A. Lazarus and O. Devauchelle, Chladni patterns explained by the space-dependent diffusion of bouncing grains, <i>Phys. Rev. Research</i> 7, L032001 (2025).</li>
+        <li>R. L. Powell and K. A. Stetson, Interferometric vibration analysis by wavefront reconstruction, <i>J. Opt. Soc. Am.</i> 55, 1593 (1965).</li>
+        <li>Lord Rayleigh, <i>The Theory of Sound</i>, Macmillan (1877).</li>
+        <li>L. A. Bunimovich, On the ergodic properties of nowhere dispersing billiards, <i>Commun. Math. Phys.</i> 65, 295 (1979).</li>
+        <li>C. M. Hutchins, The acoustics of violin plates, <i>Scientific American</i> 245, 170 (1981).</li>
+        <li>L. Cremer, M. Heckl and B. A. T. Petersson, <i>Structure-Borne Sound</i>, 3rd ed., Springer (2005).</li>
+        <li>T. Gustafsson and G. D. McBain, scikit-fem, <i>J. Open Source Softw.</i> 5, 2369 (2020).</li>
+      </ol>
+      <p class="colophon">sonoform is open source. The solver, the tests and this page are at <a href="https://github.com/samehaisaa/sonoform" target="_blank" rel="noopener">github.com/samehaisaa/sonoform</a>. A star helps it find the next person who would enjoy it.</p>
+      <p class="colophon"><button type="button" class="link" id="replayTour">replay the tour</button></p>
+    </article>
+  </section>
+
+  <section class="atlas" id="atlas" aria-hidden="true" aria-label="Atlas">
+    <header class="atlas-head">
+      <div>
+        <p class="kicker" id="atlasKicker">atlas</p>
+        <h2 id="atlasTitle"></h2>
+        <p class="atlas-sub" id="atlasSub"></p>
+      </div>
+      <div class="atlas-actions">
+        <button type="button" class="pill" id="atlasSave">download</button>
+        <button type="button" class="close" id="atlasClose" aria-label="Close">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg>
+        </button>
+      </div>
+    </header>
+    <div class="atlas-grid" id="atlasGrid"></div>
+  </section>
+
+  <section class="intro" id="intro">
+    <div class="intro-inner">
+      <h1 class="title">sonoform</h1>
+      <p class="lede">Every shape has a sound.</p>
+      <button type="button" class="begin" id="begin" disabled>
+        <span class="ring" aria-hidden="true"><i></i></span>
+        <span class="begin-label" id="beginLabel">tuning</span>
+      </button>
+      <p class="fine"><span>sound on</span><button type="button" class="link" id="skipTour">skip the tour</button></p>
+    </div>
+  </section>
+
+  <div class="toast" id="toast" role="status"></div>
 </div>
 
-<footer>
-  <span class="brand">sonoform</span>
-  <div class="modes" id="plates"></div>
-  <div class="modes" id="modes"></div>
-  <div class="partials" id="partials"></div>
-  <span class="spacer"></span>
-  <span id="msg"></span>
-  <button class="act" id="nodal">nodes</button>
-  <button class="act" id="reset">reset sand</button>
-  <button class="act" id="draw">draw</button>
-  <button class="act primary" id="play" disabled>bow</button>
-</footer>
-
-<script>
-const cv = document.getElementById('cv');
-const $ = id => document.getElementById(id);
-const FOVY = 0.62;
-// The spatial index lifted the per-frame cost by roughly two orders of
-// magnitude, so the grain count is now set by what reads as sand rather than
-// by what the CPU survives.
-const SAND_COUNT = 14000;
-// Grains only move while the plate is being bowed. Sized so a figure forms in
-// a couple of seconds of steady bowing, which is about what a real plate takes.
-const DIFFUSION = 1.8e-3;
-// Diffusivity on a perfect node, as a fraction of the antinode value. The
-// steady density goes as 1/D, so this number alone sets the contrast: the
-// ratio between a node and a half-amplitude point is (0.5 + floor)/floor.
-// At 0.015 the contrast is 34, which reads as evenly scattered sand. At 0.004
-// it is 126, the regime real Chladni photographs are in, where the antinodes
-// clear completely. Physically, lowering it is driving the plate harder.
-const DIFFUSION_FLOOR = 0.004;
-
-let audioCtx = null;
-let gl, program, flatProgram;
-
-function unlock() {
-  const Ctx = window.AudioContext || window.webkitAudioContext;
-  if (!Ctx) return;
-  if (!audioCtx) audioCtx = new Ctx();
-  if (audioCtx.state === 'suspended') audioCtx.resume();
-}
-let data = null, selected = 0, strike = null, ring = null;
-// The bow. While this is on the plate is driven steadily at the selected
-// mode's frequency, which is what Chladni actually did and the only way to
-// hold one clean figure. A strike would ring every mode at once.
-let bowing = false, osc = null, oscGain = null;
-let plateKind = 'square', sourcePoints = null, drawMode = false;
-
-// Filled from the backend. The outlines live in sonoform.presets, so there is
-// exactly one copy of them and the precomputed demo cannot drift from the app.
-let PLATES = {};
-let grains = [], busy = false, drawing = false, moved = 0, stroke = [];
-let cam = null, started = performance.now();
-// How hard the plate is ringing right now, 0 at rest. This is the single
-// thing that decides whether sand moves. Set by compose() every frame.
-let drive = 0;
-let showNodal = false;
-
-const buf = {};
-
-function sizeCanvas() {
-  const r = cv.getBoundingClientRect(), d = window.devicePixelRatio || 1;
-  cv.width = Math.round(r.width * d);
-  cv.height = Math.round(r.height * d);
-  if (gl) gl.viewport(0, 0, cv.width, cv.height);
-}
-addEventListener('resize', sizeCanvas);
-const W = () => cv.width / (window.devicePixelRatio || 1);
-const H = () => cv.height / (window.devicePixelRatio || 1);
-
-function xy(ev) {
-  const r = cv.getBoundingClientRect();
-  return [ev.clientX - r.left, ev.clientY - r.top];
-}
-
-function sub(a, b) { return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]; }
-function cross(a, b) {
-  return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
-}
-function norm(a) {
-  const L = Math.hypot(a[0], a[1], a[2]) || 1;
-  return [a[0] / L, a[1] / L, a[2] / L];
-}
-// Free orbit. Azimuth turns around the plate, elevation lifts the eye, and
-// distance is the scroll wheel. Elevation is clamped short of the poles so
-// the up vector never degenerates and the view never flips.
-const view = { azimuth: -Math.PI / 2, elevation: 0.62, distance: 1.62 };
-const MIN_ELEV = 0.06, MAX_ELEV = 1.5;
-const MIN_DIST = 0.75, MAX_DIST = 4.5;
-
-function camera(span) {
-  const r = view.distance * span;
-  const ce = Math.cos(view.elevation), se = Math.sin(view.elevation);
-  const eye = [
-    r * ce * Math.cos(view.azimuth),
-    r * ce * Math.sin(view.azimuth),
-    r * se,
-  ];
-  const z = norm(eye);                        // eye looks at the origin
-  let x = cross([0, 0, 1], z);
-  if (Math.hypot(x[0], x[1], x[2]) < 1e-6) x = [1, 0, 0];
-  x = norm(x);
-  const y = cross(z, x);
-  return { eye, x, y, z, span };
-}
-function viewMatrix(c) {
-  const m = new Float32Array(16);
-  m[0] = c.x[0]; m[1] = c.y[0]; m[2] = c.z[0];
-  m[4] = c.x[1]; m[5] = c.y[1]; m[6] = c.z[1];
-  m[8] = c.x[2]; m[9] = c.y[2]; m[10] = c.z[2];
-  m[12] = -(c.x[0] * c.eye[0] + c.x[1] * c.eye[1] + c.x[2] * c.eye[2]);
-  m[13] = -(c.y[0] * c.eye[0] + c.y[1] * c.eye[1] + c.y[2] * c.eye[2]);
-  m[14] = -(c.z[0] * c.eye[0] + c.z[1] * c.eye[1] + c.z[2] * c.eye[2]);
-  m[15] = 1;
-  return m;
-}
-function perspective(aspect) {
-  const f = 1 / Math.tan(FOVY / 2), near = 0.02, far = 20;
-  const m = new Float32Array(16);
-  m[0] = f / aspect; m[5] = f;
-  m[10] = (far + near) / (near - far); m[11] = -1;
-  m[14] = (2 * far * near) / (near - far);
-  return m;
-}
-function multiply(a, b) {
-  const o = new Float32Array(16);
-  for (let col = 0; col < 4; col++) {
-    for (let row = 0; row < 4; row++) {
-      o[col * 4 + row] =
-        a[row] * b[col * 4] + a[4 + row] * b[col * 4 + 1] +
-        a[8 + row] * b[col * 4 + 2] + a[12 + row] * b[col * 4 + 3];
-    }
-  }
-  return o;
-}
-function unproject(px, py) {
-  if (!cam) return [0, 0];
-  const ndcX = (px / W()) * 2 - 1, ndcY = 1 - (py / H()) * 2;
-  const f = 1 / Math.tan(FOVY / 2);
-  const vx = ndcX * (W() / H()) / f, vy = ndcY / f, vz = -1;
-  const dir = norm([
-    cam.x[0] * vx + cam.y[0] * vy + cam.z[0] * vz,
-    cam.x[1] * vx + cam.y[1] * vy + cam.z[1] * vz,
-    cam.x[2] * vx + cam.y[2] * vy + cam.z[2] * vz,
-  ]);
-  const t = -cam.eye[2] / dir[2];
-  return [cam.eye[0] + t * dir[0], cam.eye[1] + t * dir[1]];
-}
-
-function compile(type, source) {
-  const shader = gl.createShader(type);
-  gl.shaderSource(shader, source);
-  gl.compileShader(shader);
-  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-    throw new Error(gl.getShaderInfoLog(shader));
-  }
-  return shader;
-}
-function link(vs, fs, binds) {
-  const p = gl.createProgram();
-  gl.attachShader(p, compile(gl.VERTEX_SHADER, vs));
-  gl.attachShader(p, compile(gl.FRAGMENT_SHADER, fs));
-  for (const [name, loc] of Object.entries(binds)) gl.bindAttribLocation(p, loc, name);
-  gl.linkProgram(p);
-  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
-  return p;
-}
-
-// Brass, not a colour map. The plate is an object, and the only thing that
-// should reveal the mode is where the sand ends up. Normals come from the
-// mode gradient, so the highlight slides as the sheet bends.
-const PLATE_VS = `
-attribute vec2 aXY;
-attribute float aV;
-attribute vec2 aG;
-uniform mat4 uMvp;
-uniform float uFlex;
-uniform vec3 uEye;
-varying vec3 vN;
-varying vec3 vView;
-void main() {
-  vec3 pos = vec3(aXY, uFlex * aV);
-  vN = normalize(vec3(-uFlex * aG, 1.0));
-  vView = normalize(uEye - pos);
-  gl_Position = uMvp * vec4(pos, 1.0);
-}`;
-const PLATE_FS = `
-precision mediump float;
-varying vec3 vN;
-varying vec3 vView;
-uniform float uFlash;
-void main() {
-  vec3 n = normalize(vN);
-  vec3 view = normalize(vView);
-  // one key, one dim fill from the far side so the plate still reads as
-  // solid where the key does not reach
-  vec3 key = normalize(vec3(-0.35, 0.55, 0.76));
-  vec3 fill = normalize(vec3(0.62, -0.48, 0.35));
-
-  vec3 brass = vec3(0.710, 0.538, 0.247);
-  vec3 dark  = vec3(0.128, 0.098, 0.052);
-
-  float kd = max(dot(n, key), 0.0);
-  float fd = max(dot(n, fill), 0.0);
-  vec3 diffuse = brass * (0.16 + 0.74 * kd) + dark * 0.55 * fd;
-
-  // Blinn-Phong, tight enough that the highlight is a moving streak rather
-  // than a wash. Metal takes its specular colour from the metal.
-  vec3 half0 = normalize(key + view);
-  float spec = pow(max(dot(n, half0), 0.0), 96.0);
-  vec3 tint = mix(vec3(1.0), brass, 0.55);
-
-  // grazing angles brighten, which is what makes rolled sheet look rolled
-  float fres = pow(1.0 - max(dot(n, view), 0.0), 4.0);
-
-  vec3 colour = diffuse + tint * spec * (0.85 + uFlash) + brass * fres * 0.22;
-  gl_FragColor = vec4(colour, 1.0);
-}`;
-const FLAT_VS = `
-attribute vec3 aPos;
-uniform mat4 uMvp;
-uniform float uSize;
-void main() {
-  gl_Position = uMvp * vec4(aPos, 1.0);
-  gl_PointSize = uSize;
-}`;
-const FLAT_FS = `
-precision mediump float;
-uniform vec3 uColor;
-uniform float uRound;
-void main() {
-  if (uRound > 0.5) {
-    // square grains look like dead pixels; round them and soften the edge
-    vec2 d = gl_PointCoord - vec2(0.5);
-    float r = dot(d, d);
-    if (r > 0.25) discard;
-    float edge = smoothstep(0.25, 0.10, r);
-    gl_FragColor = vec4(uColor * (0.72 + 0.28 * edge), edge);
-    return;
-  }
-  gl_FragColor = vec4(uColor, 1.0);
-}`;
-
-function initGL() {
-  gl = cv.getContext('webgl', { antialias: true, alpha: false });
-  if (!gl) { $('msg').textContent = 'webgl is unavailable'; $('msg').className = 'bad'; return; }
-  program = link(PLATE_VS, PLATE_FS, { aXY: 0, aV: 1, aG: 2 });
-  flatProgram = link(FLAT_VS, FLAT_FS, { aPos: 0 });
-  for (const name of ['xy', 'value', 'grad', 'index', 'rim', 'nodal', 'sand', 'stroke', 'mark']) {
-    buf[name] = gl.createBuffer();
-  }
-  gl.enable(gl.DEPTH_TEST);
-  gl.enable(gl.BLEND);
-  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-  gl.clearColor(0.043, 0.051, 0.063, 1);
-}
-
-function uploadPlate() {
-  const n = data.points.length;
-  const xy = new Float32Array(n * 2);
-  data.points.forEach((p, i) => { xy[2 * i] = p[0]; xy[2 * i + 1] = p[1]; });
-  gl.bindBuffer(gl.ARRAY_BUFFER, buf.xy);
-  gl.bufferData(gl.ARRAY_BUFFER, xy, gl.STATIC_DRAW);
-  const idx = new Uint16Array(data.triangles.length * 3);
-  data.triangles.forEach((t, i) => { idx[3 * i] = t[0]; idx[3 * i + 1] = t[1]; idx[3 * i + 2] = t[2]; });
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, buf.index);
-  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx, gl.STATIC_DRAW);
-  buf.count = idx.length;
-  buf.edges = boundaryEdges(data.triangles);
-  grid = null;
-  buildGrid();
-  seedSand();
-}
-
-function boundaryEdges(triangles) {
-  const count = new Map(), ends = new Map();
-  for (const [a, b, c] of triangles) {
-    for (const [u, v] of [[a, b], [b, c], [c, a]]) {
-      const key = u < v ? u + ',' + v : v + ',' + u;
-      count.set(key, (count.get(key) || 0) + 1);
-      ends.set(key, [u, v]);
-    }
-  }
-  const edges = [];
-  for (const [key, n] of count) if (n === 1) edges.push(ends.get(key));
-  return edges;
-}
-
-function seedSand() {
-  const areas = data.triangles.map(([a, b, c]) => {
-    const p = data.points;
-    return Math.abs((p[b][0] - p[a][0]) * (p[c][1] - p[a][1]) - (p[c][0] - p[a][0]) * (p[b][1] - p[a][1])) * 0.5;
-  });
-  let sum = 0;
-  const cumulative = areas.map(area => (sum += area));
-  grains = [];
-  for (let i = 0; i < SAND_COUNT; i++) {
-    const pick = Math.random() * sum;
-    let t = cumulative.findIndex(v => v >= pick);
-    if (t < 0) t = 0;
-    const [a, b, c] = data.triangles[t];
-    let r = Math.random(), s = Math.random();
-    if (r + s > 1) { r = 1 - r; s = 1 - s; }
-    const p = data.points;
-    grains.push([
-      p[a][0] + r * (p[b][0] - p[a][0]) + s * (p[c][0] - p[a][0]),
-      p[a][1] + r * (p[b][1] - p[a][1]) + s * (p[c][1] - p[a][1]),
-      null,
-    ]);
-  }
-}
-
-// A uniform grid over the mesh, built once per solve. Locating a grain by
-// scanning every triangle costs one test per triangle per grain per frame,
-// which caps the grain count in the hundreds. The grid makes it one cell hash
-// plus a handful of candidates.
-let grid = null;
-
-function buildGrid() {
-  const pts = data.points, tris = data.triangles;
-  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-  for (const p of pts) {
-    if (p[0] < x0) x0 = p[0]; if (p[0] > x1) x1 = p[0];
-    if (p[1] < y0) y0 = p[1]; if (p[1] > y1) y1 = p[1];
-  }
-  const pad = 1e-6 * Math.max(x1 - x0, y1 - y0);
-  x0 -= pad; y0 -= pad; x1 += pad; y1 += pad;
-  // roughly one triangle per cell
-  const n = Math.max(4, Math.min(96, Math.round(Math.sqrt(tris.length))));
-  const cells = new Array(n * n);
-  for (let i = 0; i < cells.length; i++) cells[i] = [];
-  const cw = (x1 - x0) / n, ch = (y1 - y0) / n;
-
-  for (let t = 0; t < tris.length; t++) {
-    const [a, b, c] = tris[t];
-    const ax = pts[a][0], ay = pts[a][1];
-    const bx = pts[b][0], by = pts[b][1];
-    const cx = pts[c][0], cy = pts[c][1];
-    const i0 = Math.max(0, Math.floor((Math.min(ax, bx, cx) - x0) / cw));
-    const i1 = Math.min(n - 1, Math.floor((Math.max(ax, bx, cx) - x0) / cw));
-    const j0 = Math.max(0, Math.floor((Math.min(ay, by, cy) - y0) / ch));
-    const j1 = Math.min(n - 1, Math.floor((Math.max(ay, by, cy) - y0) / ch));
-    for (let j = j0; j <= j1; j++) {
-      for (let i = i0; i <= i1; i++) cells[j * n + i].push(t);
-    }
-  }
-  grid = { x0, y0, cw, ch, n, cells };
-}
-
-function locate(x, y) {
-  if (!grid) buildGrid();
-  const i = Math.floor((x - grid.x0) / grid.cw);
-  const j = Math.floor((y - grid.y0) / grid.ch);
-  if (i < 0 || j < 0 || i >= grid.n || j >= grid.n) return null;
-  const bucket = grid.cells[j * grid.n + i];
-  const pts = data.points, tris = data.triangles;
-  for (let k = 0; k < bucket.length; k++) {
-    const [a, b, c] = tris[bucket[k]];
-    const p0 = pts[a], p1 = pts[b], p2 = pts[c];
-    const area = (p1[0] - p0[0]) * (p2[1] - p0[1]) - (p2[0] - p0[0]) * (p1[1] - p0[1]);
-    if (Math.abs(area) < 1e-14) continue;
-    const w0 = ((p1[0] - x) * (p2[1] - y) - (p2[0] - x) * (p1[1] - y)) / area;
-    const w1 = ((p2[0] - x) * (p0[1] - y) - (p0[0] - x) * (p2[1] - y)) / area;
-    const w2 = 1 - w0 - w1;
-    if (w0 >= -1e-4 && w1 >= -1e-4 && w2 >= -1e-4) return { a, b, c, w0, w1, w2 };
-  }
-  return null;
-}
-function sample(x, y, values, grad) {
-  const hit = locate(x, y);
-  if (!hit) return null;
-  const v = hit.w0 * values[hit.a] + hit.w1 * values[hit.b] + hit.w2 * values[hit.c];
-  const gx = hit.w0 * grad[hit.a][0] + hit.w1 * grad[hit.b][0] + hit.w2 * grad[hit.c][0];
-  const gy = hit.w0 * grad[hit.a][1] + hit.w1 * grad[hit.b][1] + hit.w2 * grad[hit.c][1];
-  return { v, gx, gy };
-}
-function contains(x, y) { return locate(x, y) !== null; }
-
-// Box-Muller. The old step used Math.random()*2-1, which is uniform, so its
-// standard deviation is 1/sqrt(3) and the diffusion it delivered was wrong by
-// that factor before any question of the model.
-let spareNormal = null;
-function gaussian() {
-  if (spareNormal !== null) { const s = spareNormal; spareNormal = null; return s; }
-  let u = 0, v = 0, s = 0;
-  do {
-    u = Math.random() * 2 - 1;
-    v = Math.random() * 2 - 1;
-    s = u * u + v * v;
-  } while (s === 0 || s >= 1);
-  const f = Math.sqrt(-2 * Math.log(s) / s);
-  spareNormal = v * f;
-  return u * f;
-}
-
-// Mirrors sonoform.sand.sand_step. No drift: grains are random walkers whose
-// diffusivity follows the local amplitude, and the steady density goes as
-// 1/D, which piles them on the nodal set. Sampling D at the pre-step position
-// is what makes that true; moving the sample flattens the plate silently.
-// How strongly the bow at `point` can drive the selected mode. Bowing a spot
-// that sits on one of the still lines cannot move that pattern at all, which
-// is the same rule Chladni used when he moved his bow along the edge to pick
-// out different figures.
-// Where to put the bow when a plate loads. Chladni drew his along the edge,
-// and for good reason: on a free plate the rim swings hardest, so it drives
-// nearly everything, while the middle sits on a great many still lines. This
-// walks the boundary and takes the spot that drives the first mode best.
-function defaultContact(plate) {
-  const m = plate.modes[0];
-  let best = null, bestAmp = -1;
-  for (let i = 0; i < plate.outline.length; i++) {
-    const [ox, oy] = plate.outline[i];
-    // a little inside the rim, so the point is safely on the mesh
-    const p = [ox * 0.93, oy * 0.93];
-    const hit = locate(p[0], p[1]);
-    if (!hit) continue;
-    const a = Math.abs(hit.w0 * m.values[hit.a] + hit.w1 * m.values[hit.b]
-                     + hit.w2 * m.values[hit.c]);
-    if (a > bestAmp) { bestAmp = a; best = p; }
-  }
-  return best || [0.3 * plate.span, 0.3 * plate.span];
-}
-
-function driveStrength(point) {
-  if (!point || !data) return 0;
-  const hit = locate(point[0], point[1]);
-  if (!hit) return 0;
-  const m = data.modes[selected];
-  return Math.abs(hit.w0 * m.values[hit.a] + hit.w1 * m.values[hit.b]
-                + hit.w2 * m.values[hit.c]);
-}
-
-function sandStep(dt) {
-  if (drive <= 1e-4) return;          // a still plate does not move sand
-  const mode = data.modes[selected];
-  for (let i = 0; i < grains.length; i++) {
-    const g = grains[i];
-    const x = g[0], y = g[1];
-    const hit = locate(x, y);
-    if (!hit) { g[2] = null; continue; }
-    g[2] = hit;
-    const amp = hit.w0 * mode.values[hit.a] + hit.w1 * mode.values[hit.b]
-              + hit.w2 * mode.values[hit.c];
-    // D scales with how hard the plate is actually shaking. When the ring
-    // decays the grains stop dead, leaving the figure standing.
-    const D = DIFFUSION * drive * (DIFFUSION_FLOOR + Math.abs(amp));
-    const sigma = Math.sqrt(2 * D * dt);
-    let nx = x + sigma * gaussian();
-    let ny = y + sigma * gaussian();
-    if (!contains(nx, ny)) {
-      let lo = 0, hi = 1;
-      for (let k = 0; k < 12; k++) {
-        const mid = 0.5 * (lo + hi);
-        if (contains(x + mid * (nx - x), y + mid * (ny - y))) lo = mid;
-        else hi = mid;
-      }
-      const hx = x + lo * (nx - x), hy = y + lo * (ny - y);
-      const bx = hx - (1 - lo) * (nx - x), by = hy - (1 - lo) * (ny - y);
-      if (contains(bx, by)) { nx = bx; ny = by; }
-      else { nx = hx; ny = hy; }
-    }
-    g[0] = nx; g[1] = ny;
-  }
-}
-
-function nodalSegments(values) {
-  const pts = data.points, segments = [];
-  for (const [a, b, c] of data.triangles) {
-    const tri = [a, b, c], hits = [], vals = [values[a], values[b], values[c]];
-    for (const [i, j] of [[0, 1], [1, 2], [2, 0]]) {
-      const va = vals[i], vb = vals[j];
-      if (va * vb < 0) {
-        const weight = va / (va - vb);
-        const pa = pts[tri[i]], pb = pts[tri[j]];
-        hits.push([(1 - weight) * pa[0] + weight * pb[0], (1 - weight) * pa[1] + weight * pb[1]]);
-      }
-    }
-    if (hits.length >= 2) segments.push([hits[0], hits[1]]);
-  }
-  return segments;
-}
-function ribbon(segments, width, z) {
-  const out = [];
-  for (const [p, q] of segments) {
-    let dx = q[0] - p[0], dy = q[1] - p[1];
-    const len = Math.hypot(dx, dy) || 1;
-    dx /= len; dy /= len;
-    const px = -dy * width, py = dx * width;
-    const a = [p[0] + px, p[1] + py], b = [p[0] - px, p[1] - py];
-    const c = [q[0] + px, q[1] + py], d = [q[0] - px, q[1] - py];
-    out.push(a[0], a[1], z, c[0], c[1], z, b[0], b[1], z, b[0], b[1], z, c[0], c[1], z, d[0], d[1], z);
-  }
-  return new Float32Array(out);
-}
-
-// A plate at 135 Hz shows nothing. You cannot see it bend, and the only
-// visible thing is the sand moving. Animating the oscillation itself is not an
-// option either: any frame rate a browser can offer is far below the mode
-// frequency, so the sheet would alias into a slow heave unrelated to the pitch
-// being played.
-//
-// So the sheet holds its modal shape, deep enough for the highlight to break
-// across it, and only the envelope moves. The shimmer is a few percent, which
-// is what a real plate under a steady light gives you.
-//
-// The bend drawn here is flex = span * 0.030, about 5 mm on a 180 mm plate.
-// A bowed brass sheet moves by microns, so this is roughly a thousand times
-// life size. At the real amplitude the plate reads as flat and the sand is the
-// only thing an observer sees, which is also true of the bench experiment.
-function compose(screenTime) {
-  const n = data.points.length;
-  const values = new Float32Array(n);
-  const grad = new Float32Array(n * 2);
-  const flex = data.span * 0.030;
-
-  // Bowed, not struck. The amplitude rises while the bow is on and falls when
-  // it comes off, and it holds steady in between, which is what lets one
-  // figure form and stay.
-  //
-  // tau is a fixed 0.85 s and is NOT the solver's damping. The payload carries
-  // a real per-mode gamma, structural plus radiation, which works out at 2.35 s
-  // at 135 Hz down to 0.50 s at 630 Hz, and this line ignores all of it. For a
-  // bow the rise time is set by the bow rather than by the loss factor, so one
-  // constant is defensible, but it is a choice and not a result.
-  const target = bowing ? driveStrength(strike) : 0;
-  const tau = 0.85;
-  const step = Math.min(0.05, Math.max(0, (performance.now() - (compose.last || performance.now())) / 1000));
-  compose.last = performance.now();
-  compose.level = (compose.level || 0)
-                + (target - (compose.level || 0)) * (1 - Math.exp(-step / tau));
-  const ringing = compose.level;
-  const flash = 0.9 * ringing;
-  // Grains only move while the plate moves. Before the first strike this is
-  // zero and the sand sits exactly where it was poured, which is the whole
-  // point: the figure is a record of the ringing that made it.
-  drive = ringing;
-  // Flat at rest, and that is not a stylistic choice. A plate sitting on the
-  // bench is flat. It carries no shape until something shakes it, so any
-  // resting offset here would draw a plate already bent into a pattern before
-  // it had been touched, and say that the shape lives in the metal. It does
-  // not: the six shapes are what the plate CAN do, not what it is doing.
-  const envelope = ringing;
-  // a slow breath while it rings, so the surface is never quite static. It
-  // multiplies the envelope, so a still plate stays exactly flat.
-  const shimmer = 1 + 0.035 * Math.sin(2 * Math.PI * screenTime * 0.27);
-
-  const mode = data.modes[selected];
-  for (let v = 0; v < n; v++) {
-    values[v] = mode.values[v];
-    grad[2 * v] = mode.grad[v][0];
-    grad[2 * v + 1] = mode.grad[v][1];
-  }
-  return { values, grad, flex: flex * envelope * shimmer, flash };
-}
-
-function drawFlat(buffer, count, mode, color, pointSize, mvp, round) {
-  gl.useProgram(flatProgram);
-  gl.uniformMatrix4fv(gl.getUniformLocation(flatProgram, 'uMvp'), false, mvp);
-  gl.uniform3fv(gl.getUniformLocation(flatProgram, 'uColor'), color);
-  gl.uniform1f(gl.getUniformLocation(flatProgram, 'uSize'), pointSize);
-  gl.uniform1f(gl.getUniformLocation(flatProgram, 'uRound'), round ? 1 : 0);
-  gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-  const loc = gl.getAttribLocation(flatProgram, 'aPos');
-  gl.enableVertexAttribArray(loc);
-  gl.vertexAttribPointer(loc, 3, gl.FLOAT, false, 0, 0);
-  gl.drawArrays(mode, 0, count);
-  gl.disableVertexAttribArray(loc);
-}
-
-function frame() {
-  requestAnimationFrame(frame);
-  if (!gl) return;
-  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-  const span = data ? data.span : 0.18;
-  cam = camera(span);
-  const mvp = multiply(perspective(W() / Math.max(H(), 1)), viewMatrix(cam));
-  if (!data) {
-    if (stroke.length > 1) drawStroke(mvp, span);
-    return;
-  }
-  const screenTime = (performance.now() - started) / 1000;
-  // Real elapsed time, not a hardcoded 1/60. A backgrounded or throttled tab
-  // runs this loop at a few frames a second, and a fixed step made the sand
-  // and the bow envelope advance at completely different rates from each
-  // other. Clamped so returning to a parked tab does not teleport the grains.
-  const now = performance.now();
-  const dt = Math.min(0.05, Math.max(0, (now - (frame.last || now)) / 1000));
-  frame.last = now;
-  const field = compose(screenTime);
-  sandStep(dt);
-
-  gl.useProgram(program);
-  gl.uniformMatrix4fv(gl.getUniformLocation(program, 'uMvp'), false, mvp);
-  gl.uniform1f(gl.getUniformLocation(program, 'uFlex'), field.flex);
-  gl.uniform1f(gl.getUniformLocation(program, 'uFlash'), field.flash || 0);
-  gl.uniform3fv(gl.getUniformLocation(program, 'uEye'), new Float32Array(cam.eye));
-  gl.bindBuffer(gl.ARRAY_BUFFER, buf.xy);
-  const xyLoc = gl.getAttribLocation(program, 'aXY');
-  gl.enableVertexAttribArray(xyLoc);
-  gl.vertexAttribPointer(xyLoc, 2, gl.FLOAT, false, 0, 0);
-  gl.bindBuffer(gl.ARRAY_BUFFER, buf.value);
-  gl.bufferData(gl.ARRAY_BUFFER, field.values, gl.DYNAMIC_DRAW);
-  const vLoc = gl.getAttribLocation(program, 'aV');
-  gl.enableVertexAttribArray(vLoc);
-  gl.vertexAttribPointer(vLoc, 1, gl.FLOAT, false, 0, 0);
-  gl.bindBuffer(gl.ARRAY_BUFFER, buf.grad);
-  gl.bufferData(gl.ARRAY_BUFFER, field.grad, gl.DYNAMIC_DRAW);
-  const gLoc = gl.getAttribLocation(program, 'aG');
-  gl.enableVertexAttribArray(gLoc);
-  gl.vertexAttribPointer(gLoc, 2, gl.FLOAT, false, 0, 0);
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, buf.index);
-  gl.drawElements(gl.TRIANGLES, buf.count, gl.UNSIGNED_SHORT, 0);
-  gl.disableVertexAttribArray(xyLoc);
-  gl.disableVertexAttribArray(vLoc);
-  gl.disableVertexAttribArray(gLoc);
-
-  drawRim(field, mvp, span);
-  // Off by default. Drawing the answer next to the sand invites the reader to
-  // check how close the grains got, instead of letting the grains be the
-  // pattern. It is a verification aid, not part of the picture.
-  const nodal = showNodal
-    ? ribbon(nodalSegments(field.values), span * 0.0032, span * 0.004)
-    : [];
-  if (nodal.length) {
-    gl.bindBuffer(gl.ARRAY_BUFFER, buf.nodal);
-    gl.bufferData(gl.ARRAY_BUFFER, nodal, gl.DYNAMIC_DRAW);
-    drawFlat(buf.nodal, nodal.length / 3, gl.TRIANGLES, [0.91, 0.85, 0.69], 1, mvp);
-  }
-  drawSand(field, mvp);
-  if (strike) drawMark(mvp, span);
-  if (drawing && stroke.length > 1) drawStroke(mvp, span);
-}
-
-function drawRim(field, mvp, span) {
-  const thick = span * 0.02;
-  const pts = data.points;
-  const out = [];
-  for (const [a, b] of buf.edges) {
-    const z0 = field.flex * field.values[a], z1 = field.flex * field.values[b];
-    out.push(
-      pts[a][0], pts[a][1], z0, pts[b][0], pts[b][1], z1, pts[b][0], pts[b][1], z1 - thick,
-      pts[a][0], pts[a][1], z0, pts[b][0], pts[b][1], z1 - thick, pts[a][0], pts[a][1], z0 - thick
-    );
-  }
-  const arr = new Float32Array(out);
-  gl.bindBuffer(gl.ARRAY_BUFFER, buf.rim);
-  gl.bufferData(gl.ARRAY_BUFFER, arr, gl.DYNAMIC_DRAW);
-  drawFlat(buf.rim, arr.length / 3, gl.TRIANGLES, [0.10, 0.11, 0.13], 1, mvp);
-}
-
-function drawSand(field, mvp) {
-  const lift = data.span * 0.006;
-  const arr = new Float32Array(grains.length * 3);
-  for (let i = 0; i < grains.length; i++) {
-    const g = grains[i];
-    // sandStep already located this grain this frame
-    const hit = g[2];
-    let v = 0;
-    if (hit) {
-      v = hit.w0 * field.values[hit.a] + hit.w1 * field.values[hit.b]
-        + hit.w2 * field.values[hit.c];
-    }
-    arr[3 * i] = g[0];
-    arr[3 * i + 1] = g[1];
-    arr[3 * i + 2] = field.flex * v + lift;
-  }
-  gl.bindBuffer(gl.ARRAY_BUFFER, buf.sand);
-  gl.bufferData(gl.ARRAY_BUFFER, arr, gl.DYNAMIC_DRAW);
-  drawFlat(buf.sand, grains.length, gl.POINTS, [0.93, 0.87, 0.71],
-           1.9 * (window.devicePixelRatio || 1), mvp, true);
-}
-
-function drawMark(mvp, span) {
-  const r = span * 0.018, z = span * 0.008, steps = 28, out = [];
-  for (let i = 0; i < steps; i++) {
-    const a0 = 2 * Math.PI * i / steps, a1 = 2 * Math.PI * (i + 1) / steps;
-    out.push(strike[0] + r * Math.cos(a0), strike[1] + r * Math.sin(a0), z,
-             strike[0] + r * Math.cos(a1), strike[1] + r * Math.sin(a1), z);
-  }
-  const arr = new Float32Array(out);
-  gl.bindBuffer(gl.ARRAY_BUFFER, buf.mark);
-  gl.bufferData(gl.ARRAY_BUFFER, arr, gl.DYNAMIC_DRAW);
-  drawFlat(buf.mark, arr.length / 3, gl.LINES, [0.91, 0.85, 0.69], 1, mvp);
-}
-
-function drawStroke(mvp, span) {
-  const z = span * 0.01, out = [];
-  for (let i = 1; i < stroke.length; i++) {
-    out.push(stroke[i - 1][0], stroke[i - 1][1], z, stroke[i][0], stroke[i][1], z);
-  }
-  const arr = new Float32Array(out);
-  gl.bindBuffer(gl.ARRAY_BUFFER, buf.stroke);
-  gl.bufferData(gl.ARRAY_BUFFER, arr, gl.DYNAMIC_DRAW);
-  drawFlat(buf.stroke, arr.length / 3, gl.LINES, [0.91, 0.89, 0.86], 1, mvp);
-}
-
-// One seam for both ways this page runs. Served by `sonoform play` it talks to
-// the local solver. Published as a static demo, STATIC serves the presets from
-// files solved ahead of time by the same code, and drawing is unavailable
-// because there is nothing to solve with.
-const STATIC = window.SONOFORM_STATIC || null;
-
-async function get(path) {
-  if (STATIC) return STATIC.get(path);
-  return (await fetch(path)).json();
-}
-
-async function post(path, body) {
-  if (STATIC) return STATIC.post(path, body);
-  const res = await fetch(path, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  return res.json();
-}
-
-async function loadPresets() {
-  try {
-    PLATES = await get('/presets');
-  } catch {
-    PLATES = { square: { label: 'square' } };
-  }
-  buildPlates();
-}
-
-function showPlate(out) {
-  bowing = false; bowGain();
-  data = out; selected = 0; ring = null; stroke = [];
-  drive = 0; compose.level = 0;
-  $('play').textContent = 'bow'; $('play').className = 'act primary';
-  // uploadPlate rebuilds the triangle index, and defaultContact searches with
-  // it, so the order matters: picking the contact point first would query the
-  // previous plate's index against this plate's mesh.
-  uploadPlate();
-  strike = defaultContact(out);
-  buildModes();
-  showPartials();
-  $('play').disabled = false;
-  $('hint').classList.add('gone');
-  $('msg').className = '';
-  $('msg').textContent = 'press bow to drive it, click to move the bow, drag to turn it';
-}
-
-function buildModes() {
-  $('modes').innerHTML = '';
-  data.modes.forEach((_, i) => {
-    const b = document.createElement('button');
-    b.textContent = i + 1;
-    b.className = i === selected ? 'on' : '';
-    b.onclick = () => {
-      selected = i; buildModes(); showPartials();
-      // retune, and re-check whether the contact point can drive this one
-      if (bowing) { bowTone(); setBow(true); } else bowGain();
-    };
-    $('modes').append(b);
-  });
-}
-function showPartials() {
-  $('partials').innerHTML = data.modes.map((m, i) =>
-    `<span${i === selected ? ' style="color:var(--ink)"' : ''}><b>${m.hz.toFixed(1)}</b> Hz</span>`
-  ).join('');
-}
-
-async function loadPreset(key) {
-  $('msg').textContent = 'solving';
-  $('msg').className = '';
-  try {
-    const out = await post('/plate', { preset: key, modes: 6 });
-    if (!out.valid) throw new Error(out.error || 'no plate');
-    plateKind = key; sourcePoints = null;
-    showPlate(out);
-  } catch (err) {
-    $('msg').textContent = String(err.message || err);
-    $('msg').className = 'bad';
-  }
-}
-
-async function solveOutline(points) {
-  if (busy) return;
-  busy = true;
-  $('msg').textContent = 'solving';
-  $('msg').className = '';
-  try {
-    const out = await post('/plate', { points, modes: 6 });
-    if (!out.valid) {
-      $('msg').textContent = out.error || 'that outline does not close';
-      $('msg').className = 'bad';
-      stroke = [];
-      return;
-    }
-    plateKind = 'outline';
-    sourcePoints = points;
-    showPlate(out);
-  } catch (err) {
-    $('msg').textContent = String(err.message || err);
-    $('msg').className = 'bad';
-  } finally { busy = false; }
-}
-
-// The bow is synthesised here rather than fetched, because a bow does not
-// stop. The plate at resonance radiates essentially the mode frequency, so a
-// sine at that pitch is the honest sound; the loudness follows how well the
-// contact point drives the mode, so bowing a still line goes quiet.
-function bowTone() {
-  if (!audioCtx || !data) return;
-  const hz = data.modes[selected].hz;
-  if (!osc) {
-    osc = audioCtx.createOscillator();
-    oscGain = audioCtx.createGain();
-    oscGain.gain.value = 0;
-    osc.type = 'sine';
-    osc.connect(oscGain).connect(audioCtx.destination);
-    osc.start();
-  }
-  osc.frequency.setTargetAtTime(hz, audioCtx.currentTime, 0.02);
-}
-
-function bowGain() {
-  if (!oscGain || !audioCtx) return;
-  const level = bowing ? 0.16 * driveStrength(strike) : 0;
-  oscGain.gain.setTargetAtTime(level, audioCtx.currentTime, 0.12);
-}
-
-function setBow(on) {
-  if (!data) return;
-  bowing = on;
-  if (on) { unlock(); if (audioCtx) audioCtx.resume(); bowTone(); }
-  bowGain();
-  $('play').textContent = on ? 'stop' : 'bow';
-  $('play').className = on ? 'act primary' : 'act';
-  if (on && driveStrength(strike) < 0.04) {
-    $('msg').textContent = 'that spot sits on a still line, this mode cannot be driven there';
-  } else {
-    $('msg').textContent = on
-      ? `bowing at ${data.modes[selected].hz.toFixed(0)} Hz`
-      : 'stopped. the sand keeps the figure';
-  }
-  $('msg').className = '';
-}
-
-let dragFrom = null, dragPixels = 0;
-
-cv.addEventListener('pointerdown', ev => {
-  unlock();
-  cv.setPointerCapture(ev.pointerId);
-  dragFrom = xy(ev);
-  dragPixels = 0;
-  if (drawMode) { drawing = true; stroke = [unproject(...dragFrom)]; }
-});
-
-cv.addEventListener('pointermove', ev => {
-  const p = xy(ev);
-  if (!dragFrom) return;
-  const dx = p[0] - dragFrom[0], dy = p[1] - dragFrom[1];
-  dragPixels += Math.hypot(dx, dy);
-
-  if (drawing) {
-    const world = unproject(...p);
-    const last = stroke[stroke.length - 1];
-    if (Math.hypot(world[0] - last[0], world[1] - last[1]) > (cam ? cam.span * 0.008 : 0.002)) {
-      stroke.push(world);
-    }
-    dragFrom = p;
-    return;
-  }
-  // orbit
-  view.azimuth -= dx * 0.008;
-  view.elevation = Math.min(MAX_ELEV, Math.max(MIN_ELEV, view.elevation + dy * 0.006));
-  dragFrom = p;
-});
-
-cv.addEventListener('pointerup', async ev => {
-  const wasDrawing = drawing;
-  const from = dragFrom;
-  drawing = false; dragFrom = null;
-  if (!from) return;
-
-  if (wasDrawing) {
-    if (stroke.length >= 12) { await solveOutline(stroke); setDrawMode(false); }
-    else stroke = [];
-    return;
-  }
-  // a click, not an orbit
-  if (dragPixels < 6 && data) {
-    strike = unproject(...xy(ev));
-    bowGain();                       // a new contact point changes the loudness
-    if (bowing) setBow(true);        // and may land on a still line
-  }
-});
-
-cv.addEventListener('wheel', ev => {
-  ev.preventDefault();
-  const factor = Math.exp(ev.deltaY * 0.0011);
-  view.distance = Math.min(MAX_DIST, Math.max(MIN_DIST, view.distance * factor));
-}, { passive: false });
-
-$('play').onclick = () => {
-  if (!data) return;
-  if (!strike) strike = defaultContact(data);
-  setBow(!bowing);
-};
-// Pour the sand again, uniformly. The figure is a record of the strikes that
-// made it, so clearing it has to be its own action.
-$('reset').onclick = () => {
-  if (!data) return;
-  setBow(false);
-  seedSand();
-  drive = 0; compose.level = 0;
-  $('msg').textContent = 'sand poured. press bow to drive the plate';
-  $('msg').className = '';
-};
-
-$('nodal').onclick = () => {
-  showNodal = !showNodal;
-  $('nodal').className = showNodal ? 'act primary' : 'act';
-};
-
-function setDrawMode(on) {
-  drawMode = on;
-  stroke = [];
-  $('draw').className = on ? 'act primary' : 'act';
-  $('hint').classList.toggle('gone', !on);
-  $('hint').textContent = 'draw a closed loop';
-  $('msg').textContent = on
-    ? 'drag a closed loop'
-    : (data ? 'click the plate to strike it, drag to turn it' : '');
-}
-$('draw').onclick = () => setDrawMode(!drawMode);
-
-function buildPlates() {
-  const box = $('plates');
-  box.innerHTML = '';
-  for (const [key, plate] of Object.entries(PLATES)) {
-    const b = document.createElement('button');
-    b.textContent = plate.label;
-    b.className = key === plateKind ? 'on' : '';
-    b.onclick = () => loadPlate(key);
-    box.append(b);
-  }
-}
-
-async function loadPlate(key) {
-  if (busy) return;
-  const plate = PLATES[key];
-  if (!plate) return;
-  setDrawMode(false);
-  const previous = plateKind;
-  plateKind = key;
-  buildPlates();
-  const before = data;
-  await loadPreset(key);
-  if (data === before) {
-    // the solve failed; do not leave the button lit on a plate that is not
-    // the one on screen, which is how a server error read as "nothing happened"
-    plateKind = previous;
-    buildPlates();
-    return;
-  }
-  plateKind = key;
-  buildPlates();
-}
-
-sizeCanvas();
-initGL();
-frame();
-loadPresets().then(() => loadPlate('square'));
-</script>
+<div class="fallback" id="fallback" hidden>
+  <h1>sonoform</h1>
+  <p id="fallbackText">This page needs WebGL2, which this browser does not offer.</p>
+  <p><a href="https://github.com/samehaisaa/sonoform">See the project on GitHub</a></p>
+</div>
+
+<noscript><div class="fallback"><h1>sonoform</h1><p>This page is a simulation, and simulations need JavaScript.</p></div></noscript>
+
+<script type="module" src="js/main.js"></script>
 </body>
 </html>

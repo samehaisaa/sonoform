@@ -30,6 +30,11 @@ jobs:
           python-version: ${{ matrix.python }}
           cache: pip
           cache-dependency-path: pyproject.toml
+      # The page's JavaScript is tested against the package from pytest,
+      # so the Node it runs on is pinned here rather than left to the image.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
       - run: pip install -e ".[dev]"
       - run: ruff check .
       - run: pytest -q -m "not slow"
