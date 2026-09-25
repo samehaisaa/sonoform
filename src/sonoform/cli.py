@@ -299,7 +299,7 @@ def main(argv=None) -> int:
     chords.set_defaults(func=_cmd_chords)
 
     play = subparsers.add_parser(
-        "play", help="open the plate, draw an outline, strike it"
+        "play", help="open the plates in your browser"
     )
     play.add_argument("--port", type=int, default=8731)
     play.add_argument(

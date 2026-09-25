@@ -1,9 +1,13 @@
 """A small local web app.
 
-``sonoform play`` serves a free brass plate. Draw a closed outline, or start
-from the square. The eigenproblem is solved once; the page then flexes one
-partial, lets sand diffuse onto its nodal set, and plays the pressure a strike
-radiates. The membrane routes are still here for the earlier editor.
+``sonoform play`` serves the page in ``web/`` and the data it reads. The data
+is the same set of files the published site carries, ``data/manifest.json``
+and one payload per plate and Poisson ratio, produced on request by
+:mod:`sonoform.export` rather than read from disk, so a checkout always serves
+what its own solver says.
+
+The POST routes are older: a plate solve for the presets and the square, and
+the membrane editor. The page no longer calls them.
 """
 
 from __future__ import annotations
@@ -11,14 +15,17 @@ from __future__ import annotations
 import base64
 import io
 import json
+import re
 import threading
 import webbrowser
+from collections import OrderedDict
 from contextlib import suppress
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import numpy as np
 
+from sonoform import export
 from sonoform.audio import (
     radiation_decay,
     render,
@@ -26,12 +33,7 @@ from sonoform.audio import (
     structural_decay,
     write_wav,
 )
-from sonoform.geometry import (
-    FourierShape,
-    is_simple_polygon,
-    polygon_mesh,
-    resample_closed_path,
-)
+from sonoform.geometry import FourierShape
 from sonoform.inverse import CHORDS, check_feasibility, solve_inverse
 from sonoform.plate import (
     SPAN,
@@ -46,6 +48,75 @@ from sonoform.spectrum import solve_spectrum
 __all__ = ["serve"]
 
 _WEB = Path(__file__).parent / "web"
+
+_TYPES = {
+    ".html": "text/html; charset=utf-8",
+    ".css": "text/css; charset=utf-8",
+    ".js": "text/javascript; charset=utf-8",
+    ".json": "application/json",
+    ".svg": "image/svg+xml",
+    ".png": "image/png",
+    ".ico": "image/x-icon",
+    ".txt": "text/plain; charset=utf-8",
+    ".webmanifest": "application/manifest+json",
+}
+
+# Payloads are a few hundred kilobytes each and take half a second to solve.
+# Keeping the serialised bytes rather than the spectra matters: a spectrum
+# carries its whole Argyris basis, megabytes apiece.
+_DATA_LOCK = threading.Lock()
+_DATA_CACHE: OrderedDict[str, bytes] = OrderedDict()
+_DATA_KEEP = 16
+_PLATE_FILE = re.compile(r"plates/([a-z]+)-(\d\.\d\d)\.json")
+
+
+def _static_file(route: str) -> Path | None:
+    """A file under ``web/`` that may be served, or None.
+
+    The route is resolved and must land inside ``web/``, so ``..`` and
+    encoded variants of it cannot reach anything else on the machine.
+    """
+    root = _WEB.resolve()
+    relative = route.lstrip("/") or "index.html"
+    try:
+        path = (root / relative).resolve()
+    except (OSError, ValueError):
+        return None
+    if root not in path.parents:
+        return None
+    if not path.is_file() or path.suffix not in _TYPES:
+        return None
+    return path
+
+
+def _data_file(route: str) -> bytes | None:
+    """One file of the data tree, built on first request and then kept."""
+    name = route[len("/data/"):]
+    if name == "manifest.json":
+        build = export.manifest
+    elif name == "verification.json":
+        build = export.verification
+    else:
+        match = _PLATE_FILE.fullmatch(name)
+        if match is None or match[1] not in PRESETS:
+            return None
+        poisson = float(match[2])
+        if not any(abs(poisson - nu) < 1e-9 for nu in export.poisson_ratios()):
+            return None
+
+        def build(key=match[1], poisson=poisson):
+            return export.plate_payload(key, poisson)
+
+    with _DATA_LOCK:
+        if name in _DATA_CACHE:
+            _DATA_CACHE.move_to_end(name)
+            return _DATA_CACHE[name]
+        body = json.dumps(build(), separators=(",", ":")).encode("utf-8")
+        _DATA_CACHE[name] = body
+        while len(_DATA_CACHE) > _DATA_KEEP:
+            _DATA_CACHE.popitem(last=False)
+        return body
+
 
 # Live editing resolution.
 #
@@ -122,47 +193,6 @@ def _spectrum_payload(shape: FourierShape, n_modes: int) -> dict:
     }
 
 
-def _drawn_payload(points, n_modes: int) -> dict:
-    """Spectrum of a freehand outline.
-
-    Unlike the slider shapes this is an arbitrary polygon, so there is no
-    polar grid to exploit. The triangulation itself goes to the browser and
-    the modes ride along as one value per vertex.
-    """
-    path = resample_closed_path(points, n=150)
-    if not is_simple_polygon(path):
-        return {"valid": False, "error": "the outline crosses itself"}
-
-    # normalise scale so the pitch does not depend on how big you drew it
-    path = path - path.mean(axis=1, keepdims=True)
-    path = path / np.abs(path).max()
-
-    mesh = polygon_mesh(path, max_area=float(np.ptp(path[0]) * np.ptp(path[1]) / 1400))
-    spec = solve_spectrum(mesh, k=n_modes, order=2)
-
-    n_vertices = mesh.p.shape[1]
-    modes = []
-    for i in range(len(spec)):
-        values = spec.eigenvectors[:n_vertices, i]
-        peak = np.abs(values).max()
-        if peak > 0:
-            values = values / peak
-        if values[np.argmax(np.abs(values))] < 0:
-            values = -values
-        modes.append([round(float(v), 4) for v in values])
-
-    return {
-        "valid": True,
-        "points": [[round(float(x), 5), round(float(y), 5)] for x, y in mesh.p.T],
-        "triangles": [[int(a), int(b), int(c)] for a, b, c in mesh.t.T],
-        "outline": [[round(float(x), 5), round(float(y), 5)] for x, y in path.T],
-        "ratios": [round(float(r), 5) for r in spec.ratios],
-        "modes": modes,
-        "nearest": _nearest_chord(spec.ratios),
-        "elements": int(mesh.t.shape[1]),
-    }
-
-
 _PLATE_LOCK = threading.Lock()
 _PLATE_CACHE: dict = {"key": None, "spec": None, "outline": None}
 
@@ -190,8 +220,6 @@ def _plate_for(payload):
             return solve_plate(square_mesh(), k=count), _square_outline()
 
     else:
-        if len(points) < 6:
-            raise ValueError("draw a bigger loop")
         raw = np.asarray(points, dtype=float).ravel()
         key = ("outline", count, tuple(np.round(raw, 4)))
 
@@ -275,12 +303,16 @@ class _Handler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         route = self._route()
-        if route in ("/", "/index.html"):
-            self._send(
-                200,
-                (_WEB / "index.html").read_bytes(),
-                "text/html; charset=utf-8",
-            )
+        if route.startswith("/data/"):
+            try:
+                body = _data_file(route)
+            except Exception as exc:  # a failed solve should not take the server down
+                self._json({"error": f"{type(exc).__name__}: {exc}"}, 500)
+                return
+            if body is None:
+                self._json({"error": "not found"}, 404)
+            else:
+                self._send(200, body, "application/json")
         elif route == "/presets":
             # Labels only. The outlines stay server side so the page has no
             # second copy of them to drift from.
@@ -296,7 +328,11 @@ class _Handler(BaseHTTPRequestHandler):
                 }
             )
         else:
-            self._json({"error": "not found"}, 404)
+            path = _static_file(route)
+            if path is None:
+                self._json({"error": "not found"}, 404)
+            else:
+                self._send(200, path.read_bytes(), _TYPES[path.suffix])
 
     def do_POST(self) -> None:
         length = int(self.headers.get("Content-Length", 0))
@@ -314,37 +350,6 @@ class _Handler(BaseHTTPRequestHandler):
                     self._json({"valid": False, "error": "boundary crosses itself"})
                     return
                 self._json(_spectrum_payload(shape, int(payload.get("modes", 6))))
-
-            elif route == "/drawn":
-                points = payload.get("points") or []
-                if len(points) < 6:
-                    self._json({"valid": False, "error": "draw a bigger loop"})
-                    return
-                self._json(_drawn_payload(points, int(payload.get("modes", 6))))
-
-            elif route == "/drawnAudio":
-                path = resample_closed_path(payload.get("points") or [], n=150)
-                path = path - path.mean(axis=1, keepdims=True)
-                path = path / np.abs(path).max()
-                mesh = polygon_mesh(
-                    path, max_area=float(np.ptp(path[0]) * np.ptp(path[1]) / 1400)
-                )
-                spec = solve_spectrum(mesh, k=10, order=2)
-                # Where the shape is struck is the user's choice, not ours.
-                # It decides which modes sound: a strike on a nodal line
-                # cannot drive that mode at all.
-                strike = payload.get("strike")
-                if strike is None:
-                    strike = (0.35 * float(mesh.p[0].max()), 0.0)
-                signal = render(
-                    spec,
-                    fundamental_hz=float(payload.get("hz", 196.0)),
-                    strike=(float(strike[0]), float(strike[1])),
-                    duration=float(payload.get("duration", 2.5)),
-                )
-                tmp = Path(self.server.tmpdir) / "drawn.wav"
-                write_wav(tmp, signal)
-                self._send(200, tmp.read_bytes(), "audio/wav")
 
             elif route == "/audio":
                 shape = _shape_from(payload)

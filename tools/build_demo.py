@@ -1,10 +1,10 @@
-"""Build the static demo.
+"""Build the published site.
 
-The published demo has no solver behind it, so every preset is solved here
-ahead of time and written out as the exact payload the local server would have
-returned. The page is the same index.html the app ships: it picks up
-window.SONOFORM_STATIC and reads from these files instead of posting to a
-server. Drawing is unavailable, because there is nothing to solve with.
+The site is the page ``sonoform play`` serves, plus every data file that page
+would ask the local server for, computed ahead of time by the same functions.
+Nothing is simplified for the static copy. Every plate on it was solved by
+this checkout's solver, and the benchmark numbers its physics panel shows are
+the ones this build got.
 
     python tools/build_demo.py site/
 """
@@ -16,86 +16,48 @@ import json
 import pathlib
 import shutil
 import sys
+import time
 
-from sonoform.plate import SPAN
-from sonoform.presets import PRESETS, preset_request
-from sonoform.server import _plate_for, _plate_payload
+from sonoform import export
+from sonoform.presets import PRESETS
 
 WEB = pathlib.Path(__file__).resolve().parent.parent / "src" / "sonoform" / "web"
 
-SHIM = """// Static backend for the published demo.
-//
-// The presets below were solved by tools/build_demo.py with the same code the
-// local app calls, so what you see here is the real solution and not a
-// simplified stand-in. Drawing your own outline needs the solver, which is a
-// Python package, so that button is disabled and points at the repository.
-window.SONOFORM_STATIC = {
-  presets: %(presets)s,
 
-  async get(path) {
-    if (path === '/presets') return this.presets;
-    throw new Error('not available in the demo: ' + path);
-  },
-
-  async post(path, body) {
-    if (path === '/plate' && body && body.preset) {
-      const res = await fetch('plates/' + body.preset + '.json');
-      if (!res.ok) throw new Error('could not load ' + body.preset);
-      return res.json();
-    }
-    if (path === '/plate') {
-      return { valid: false, error: 'drawing needs the solver, see the repo' };
-    }
-    throw new Error('not available in the demo: ' + path);
-  },
-};
-
-// Tell the reader what this is, once the app has settled.
-addEventListener('load', () => {
-  const draw = document.getElementById('draw');
-  if (draw) {
-    draw.disabled = true;
-    draw.title = 'drawing needs the local solver: '
-      + 'pip install -e . and run sonoform play';
-  }
-  const hint = document.getElementById('hint');
-  if (hint) hint.textContent = 'pick a plate and press bow';
-});
-"""
+def _write(path: pathlib.Path, payload) -> int:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    body = json.dumps(payload, separators=(",", ":"))
+    path.write_text(body, encoding="utf-8")
+    return len(body)
 
 
 def build(out: pathlib.Path) -> None:
-    plates = out / "plates"
-    plates.mkdir(parents=True, exist_ok=True)
+    started = time.perf_counter()
+    shutil.copytree(WEB, out, dirs_exist_ok=True)
+    data = out / "data"
+
+    _write(data / "manifest.json", export.manifest())
+    _write(data / "verification.json", export.verification())
 
     total = 0
     for key in PRESETS:
-        request = preset_request(key)
-        spec, outline = _plate_for(request)
-        payload = _plate_payload(spec, outline)
-        path = plates / f"{key}.json"
-        path.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
-        size = path.stat().st_size
-        total += size
-        hz = [round(m["hz"], 1) for m in payload["modes"]]
-        print(f"  {key:9s} {size / 1024:7.0f} KB  {hz}")
+        sizes = []
+        for poisson in export.poisson_ratios():
+            payload = export.plate_payload(key, poisson)
+            size = _write(data / export.plate_file(key, poisson), payload)
+            sizes.append(size)
+            total += size
+        notes = len(payload["clusters"])
+        print(f"  {key:9s} {sum(sizes) / 1024:6.0f} KB  {notes:2d} notes")
 
-    shutil.copy(WEB / "index.html", out / "index.html")
-    labels = {key: {"label": plate["label"]} for key, plate in PRESETS.items()}
-    (out / "static.js").write_text(
-        SHIM % {"presets": json.dumps(labels)}, encoding="utf-8"
-    )
-
-    # the page has to load the shim before its own script runs
-    page = (out / "index.html").read_text(encoding="utf-8")
-    marker = "<script>\nconst cv ="
-    if marker not in page:
-        raise SystemExit("could not find the script tag to inject before")
-    page = page.replace(marker, '<script src="static.js"></script>\n' + marker, 1)
-    (out / "index.html").write_text(page, encoding="utf-8")
+    # the card link previews show, rendered by the page itself
+    card = WEB.parent.parent.parent / "docs" / "og.jpg"
+    if card.exists():
+        shutil.copy(card, out / "og.jpg")
 
     (out / ".nojekyll").write_text("", encoding="utf-8")
-    print(f"\n  {total / 1024:.0f} KB of plates, span {SPAN} m")
+    elapsed = time.perf_counter() - started
+    print(f"\n  {total / 1024 / 1024:.1f} MB of plates in {elapsed:.0f} s")
     print(f"  wrote {out}")
 
 

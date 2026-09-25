@@ -1,9 +1,9 @@
-# The full app, drawing included, without installing Python.
+# The app without installing Python.
 #
 #   docker run --rm -p 8731:8731 ghcr.io/samehaisaa/sonoform
 #
-# Then open http://127.0.0.1:8731/. The published demo can only show the
-# presets, because it has no solver behind it. This has the solver.
+# Then open http://127.0.0.1:8731/. It serves the same page as the published
+# site, and solves each plate on request instead of reading it from disk.
 
 FROM python:3.12-slim AS build
 WORKDIR /src

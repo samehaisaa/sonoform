@@ -150,25 +150,3 @@ def test_self_intersecting_outlines_are_caught():
     theta = np.linspace(0, 2 * np.pi, 40, endpoint=False)
     blob = np.vstack([np.cos(theta), np.sin(theta)]) * (1 + 0.3 * np.sin(3 * theta))
     assert is_simple_polygon(blob)
-
-
-def test_drawn_outline_solves_to_a_sane_spectrum():
-    from sonoform.server import _drawn_payload
-
-    theta = np.linspace(0, 2 * np.pi, 80, endpoint=False)
-    r = 1 + 0.25 * np.sin(3 * theta)
-    pts = np.vstack([r * np.cos(theta), r * np.sin(theta)]).T.tolist()
-    out = _drawn_payload(pts, 5)
-    assert out["valid"]
-    assert out["ratios"][0] == 1.0
-    assert all(np.diff(out["ratios"]) >= -1e-9), "partials must be ascending"
-    assert len(out["modes"][0]) == len(out["points"])
-    assert out["elements"] > 200
-
-
-def test_drawn_outline_rejects_a_crossing_loop():
-    from sonoform.server import _drawn_payload
-
-    out = _drawn_payload([[0, 0], [2, 2], [2, 0], [0, 2], [0, 1]], 3)
-    assert not out["valid"]
-    assert "crosses itself" in out["error"]

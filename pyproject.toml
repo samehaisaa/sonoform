@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "sonoform"
 dynamic = ["version"]
-description = "Chladni figures of any shape you draw, solved and bowed"
+description = "Chladni plates solved from the equations of elasticity, bowed in the browser"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
