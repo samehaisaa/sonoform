@@ -13,12 +13,20 @@ from sonoform.plate import BRASS, outline_mesh, solve_plate, square_mesh
 from sonoform.presets import PRESETS, preset_points, preset_request
 
 # Hz, at BRASS, for the six lowest flexible modes of each preset.
+#
+# The first five rows are what the app has shown since the presets existed.
+# The last four arrived with the solver's unit-independent shift, and were
+# checked against a dense solve of the same matrices when they were pinned.
 EXPECTED = {
     "square": [135.4, 198.0, 252.8, 352.8, 352.8, 629.8],
     "circle": [216.5, 216.5, 376.3, 504.1, 504.1, 849.8],
     "triangle": [336.7, 344.2, 344.3, 827.4, 828.5, 874.8],
     "ellipse": [266.6, 345.9, 667.7, 753.3, 778.7, 1225.6],
     "hexagon": [257.7, 257.8, 446.2, 551.3, 652.5, 986.4],
+    "flower": [239.1, 239.1, 400.0, 613.0, 613.0, 738.3],
+    "stadium": [255.3, 340.0, 668.2, 761.8, 991.8, 1285.9],
+    "guitar": [234.2, 240.8, 481.5, 569.9, 691.0, 914.9],
+    "violin": [234.2, 279.9, 605.0, 766.2, 834.0, 1170.3],
 }
 
 

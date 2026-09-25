@@ -267,10 +267,10 @@ def polygon_mesh(vertices, max_area: float | None = None) -> MeshTri:
 
 
 def resample_closed_path(points, n: int = 160):
-    """Even out a freehand path and close it.
+    """Resample a closed path evenly by arclength.
 
-    A mouse drags out points clumped wherever the hand slowed down. Delaunay
-    copes badly with that, so the path is walked at constant arclength.
+    Delaunay copes badly with points clumped along a path, so the path is
+    walked at constant arclength.
 
     Parameters
     ----------
