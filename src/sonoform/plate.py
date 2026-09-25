@@ -201,8 +201,21 @@ def solve_plate(
     # K is singular: the three rigid motions cost no bending energy.
     # K + α M is positive definite, its eigenvalues are ω² + α, and
     # subtracting α recovers the plate frequencies including the zeros.
+    #
+    # α has to sit near the bottom of the flexible spectrum rather than far
+    # below it. Shift-invert maps the rigid modes to 1/α and the first
+    # flexible mode to 1/(ω₁² + α). A fixed small fraction of D/ρh, which is
+    # what this used to be, lets the rigid modes outweigh the flexible ones in
+    # the inverted operator by six to ten orders of magnitude, set by nothing
+    # but the units of the mesh, and ARPACK then returns flexible modes a
+    # percent out without reporting anything: the triangle meshed at a span
+    # of one metre came back at 332.5 Hz for a mode whose discrete value, by
+    # a dense solve, is 336.7. Kirchhoff's equation puts ω₁² at
+    # (D / ρh)(Ω / L²)² with Ω of order ten for any free plate, so that is
+    # the shift, and the solve no longer depends on the units.
     scale = float(material.flexural_rigidity / material.areal_density)
-    alpha = 1e-4 * scale
+    extent = float(np.ptp(mesh.p, axis=1).max())
+    alpha = scale * (10.0 / extent**2) ** 2
     shifted = (stiffness + alpha * mass).tocsc()
     v0 = np.random.default_rng(0).standard_normal(shifted.shape[0])
     mus, vecs = eigsh(
@@ -342,9 +355,12 @@ def display_field(spec: PlateSpectrum, level: int = 3):
         coeffs = spec.eigenvectors[:, index]
         raw = np.asarray(probe @ coeffs)
         peak = np.abs(raw).max()
-        sign = 1.0
-        if peak > 0.0 and raw[np.argmax(np.abs(raw))] < 0.0:
-            sign = -1.0
+        # The sign comes from the vertices, by the same rule vertex_values
+        # uses, so the two always agree. Taking it from the finer points
+        # instead fails on an antisymmetric mode, whose largest values come in
+        # equal and opposite pairs and leave the choice of sign to rounding.
+        vertex = spec._vertex_component(index, 0)
+        sign = 1.0 if vertex[np.argmax(np.abs(vertex))] >= 0.0 else -1.0
         scale_v = sign / peak if peak > 0.0 else 1.0
         values.append(raw * scale_v)
         # gradients come from the coarse nodal dofs, interpolated the same way

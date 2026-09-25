@@ -7,12 +7,14 @@ from scipy.spatial import cKDTree
 from sonoform.audio import rayleigh_integral
 from sonoform.geometry import star_mesh
 from sonoform.plate import (
+    BRASS,
     SPAN,
     PlateMaterial,
     outline_mesh,
     solve_plate,
     square_mesh,
 )
+from sonoform.presets import preset_points
 
 # Five significant figures, ν = 0.3, Ω = ω a² √(ρ h / D).
 # Narita, EPI International Journal of Engineering 5 (2022), reproducing
@@ -134,6 +136,26 @@ def test_the_square_reference_is_verified_not_trusted():
     omega = _ritz_free_square()
     assert np.abs(omega[:3]).max() < 1e-3, "rigid motions must come out at zero"
     np.testing.assert_allclose(omega[3:9], LEISSA_SQUARE, rtol=1e-4)
+
+
+def test_the_solve_does_not_depend_on_the_units_of_the_mesh():
+    """The same plate meshed in metres and in plate units rings the same.
+
+    The shift that makes K + αM invertible used to be a fixed fraction of
+    D/ρh. That let the rigid modes outweigh the flexible ones in the
+    shift-inverted operator by six to ten orders of magnitude, set by the
+    length unit alone, and ARPACK misconverged without a warning: the
+    triangle, whose lowest three modes lie within 2.3 % of each other, came
+    back 21 cents low at a span of one metre while a dense solve of the very
+    same matrices said otherwise.
+    """
+    points = preset_points("triangle")
+    near, _ = outline_mesh(points, span=SPAN)
+    far, _ = outline_mesh(points, span=1.0)
+    a = solve_plate(near, BRASS, k=6).frequencies
+    b = solve_plate(far, BRASS, k=6).frequencies / SPAN**2
+    cents = np.abs(1200.0 * np.log2(b / a))
+    assert cents.max() < 0.01, f"{cents.max():.3f} cents between the two units"
 
 
 def test_free_square_matches_leissa(square):
